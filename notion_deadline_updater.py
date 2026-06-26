@@ -56,9 +56,12 @@ def query_overdue_tasks(database_id):
         start_cursor = data.get("next_cursor")
     return results
 
-def update_task(page_id, new_deadline_str, new_start_str=None):
+def update_task(page_id, new_deadline_str, new_deadline_end=None, new_start_str=None):
     url = f"https://api.notion.com/v1/pages/{page_id}"
-    properties = {"Deadline": {"date": {"start": new_deadline_str}}}
+    deadline_date = {"start": new_deadline_str}
+    if new_deadline_end:
+        deadline_date["end"] = new_deadline_end
+    properties = {"Deadline": {"date": deadline_date}}
     if new_start_str:
         properties["Start"] = {"date": {"start": new_start_str}}
     resp = requests.patch(url, headers=HEADERS, json={"properties": properties})
@@ -86,16 +89,21 @@ def main():
                 old_deadline = deadline["start"]
                 new_deadline = shift_to_today(old_deadline, today_str)
 
+                # Shift Deadline.end if present (preserves time, changes only date)
+                old_deadline_end = deadline.get("end")
+                new_deadline_end = shift_to_today(old_deadline_end, today_str) if old_deadline_end else None
+
                 # Also shift Start if set
                 start_prop = task["properties"].get("Start", {}).get("date")
                 new_start = None
                 if start_prop and start_prop.get("start"):
                     new_start = shift_to_today(start_prop["start"], today_str)
 
-                update_task(page_id, new_deadline, new_start)
+                update_task(page_id, new_deadline, new_deadline_end, new_start)
 
+                end_label = f"→{new_deadline_end[11:16]}" if new_deadline_end and "T" in new_deadline else ""
                 start_label = f" | Start {start_prop['start'][:10]} -> {today_str}" if new_start else ""
-                print(f"   OK '{title}' {old_deadline[:10]} -> {today_str}{start_label}")
+                print(f"   OK '{title}' {old_deadline[:10]} -> {today_str}{end_label}{start_label}")
                 total_updated += 1
         except Exception as ex:
             print(f"   ERRORE: {ex}")
