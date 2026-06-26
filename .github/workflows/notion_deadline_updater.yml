@@ -1,4 +1,4 @@
-name: 🥊 Notion Deadline Updater
+name: Notion Deadline Updater
 
 on:
   schedule:
@@ -9,18 +9,18 @@ jobs:
   update-deadlines:
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Checkout repo
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: 🐍 Setup Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: 📦 Installa dipendenze
-        run: pip install requests
+      - name: Installa dipendenze
+        run: pip install -r requirements.txt
 
-      - name: 🚀 Esegui script
+      - name: Esegui script
         env:
-          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_TOKEN: ${{ secrets.NOTION }}
         run: python notion_deadline_updater.py
