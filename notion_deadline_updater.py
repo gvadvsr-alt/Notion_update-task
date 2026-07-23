@@ -37,7 +37,7 @@ def query_overdue_tasks(database_id):
     payload = {
         "filter": {
             "and": [
-                {"property": "Deadline", "date": {"before": today}},
+                {"property": "DoDate", "date": {"before": today}},
                 {"property": "Status", "status": {"does_not_equal": "Done"}}
             ]
         }
@@ -56,12 +56,12 @@ def query_overdue_tasks(database_id):
         start_cursor = data.get("next_cursor")
     return results
 
-def update_task(page_id, new_deadline_str, new_deadline_end=None, new_start_str=None):
+def update_task(page_id, new_dodate_str, new_dodate_end=None, new_start_str=None):
     url = f"https://api.notion.com/v1/pages/{page_id}"
-    deadline_date = {"start": new_deadline_str}
-    if new_deadline_end:
-        deadline_date["end"] = new_deadline_end
-    properties = {"Deadline": {"date": deadline_date}}
+    dodate_date = {"start": new_dodate_str}
+    if new_dodate_end:
+        dodate_date["end"] = new_dodate_end
+    properties = {"DoDate": {"date": dodate_date}}
     if new_start_str:
         properties["Start"] = {"date": {"start": new_start_str}}
     resp = requests.patch(url, headers=HEADERS, json={"properties": properties})
@@ -70,7 +70,7 @@ def update_task(page_id, new_deadline_str, new_deadline_end=None, new_start_str=
 def main():
     today = get_today()
     today_str = today.isoformat()
-    print(f"\nNotion Deadline Updater -- {today}")
+    print(f"\nNotion DoDate Updater -- {today}")
     print("=" * 50)
     total_updated = 0
     for db_name, db_id in DATABASES.items():
@@ -83,15 +83,15 @@ def main():
                 title_prop = task["properties"].get("\U0001f94a", {})
                 title = title_prop["title"][0]["plain_text"] if title_prop.get("title") else "Senza titolo"
 
-                deadline = task["properties"].get("Deadline", {}).get("date")
-                if not deadline or not deadline.get("start"):
+                dodate = task["properties"].get("DoDate", {}).get("date")
+                if not dodate or not dodate.get("start"):
                     continue
-                old_deadline = deadline["start"]
-                new_deadline = shift_to_today(old_deadline, today_str)
+                old_dodate = dodate["start"]
+                new_dodate = shift_to_today(old_dodate, today_str)
 
-                # Shift Deadline.end if present (preserves time, changes only date)
-                old_deadline_end = deadline.get("end")
-                new_deadline_end = shift_to_today(old_deadline_end, today_str) if old_deadline_end else None
+                # Shift DoDate.end if present (preserves time, changes only date)
+                old_dodate_end = dodate.get("end")
+                new_dodate_end = shift_to_today(old_dodate_end, today_str) if old_dodate_end else None
 
                 # Also shift Start if set
                 start_prop = task["properties"].get("Start", {}).get("date")
@@ -99,11 +99,11 @@ def main():
                 if start_prop and start_prop.get("start"):
                     new_start = shift_to_today(start_prop["start"], today_str)
 
-                update_task(page_id, new_deadline, new_deadline_end, new_start)
+                update_task(page_id, new_dodate, new_dodate_end, new_start)
 
-                end_label = f"→{new_deadline_end[11:16]}" if new_deadline_end and "T" in new_deadline else ""
+                end_label = f"→{new_dodate_end[11:16]}" if new_dodate_end and "T" in new_dodate else ""
                 start_label = f" | Start {start_prop['start'][:10]} -> {today_str}" if new_start else ""
-                print(f"   OK '{title}' {old_deadline[:10]} -> {today_str}{end_label}{start_label}")
+                print(f"   OK '{title}' {old_dodate[:10]} -> {today_str}{end_label}{start_label}")
                 total_updated += 1
         except Exception as ex:
             print(f"   ERRORE: {ex}")
