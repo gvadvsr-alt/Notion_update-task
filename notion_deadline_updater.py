@@ -1,6 +1,7 @@
 import os
+import sys
 import requests
-from datetime import datetime, timezone
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 
@@ -20,7 +21,7 @@ DATABASES = {
 }
 
 def get_today():
-    return datetime.now(ZoneInfo("Australia/Sydney")).date()
+    return datetime.now(ZoneInfo("Europe/Rome")).date()
 
 def shift_to_today(original_str, today_str):
     """Replace the date part keeping the time and timezone if present."""
@@ -30,6 +31,12 @@ def shift_to_today(original_str, today_str):
         # e.g. "2026-06-02T22:30:00.000+10:00" -> "2026-06-10T22:30:00.000+10:00"
         return today_str + original_str[10:]
     return today_str
+
+def shift_end(original_end, old_start, today):
+    """Shift the end by the same number of days as the start (keeps multi-day/overnight ranges valid)."""
+    delta = today - date.fromisoformat(old_start[:10])
+    new_day = (date.fromisoformat(original_end[:10]) + delta).isoformat()
+    return new_day + original_end[10:]
 
 def query_overdue_tasks(database_id):
     today = get_today().isoformat()
@@ -73,6 +80,7 @@ def main():
     print(f"\nNotion DoDate Updater -- {today}")
     print("=" * 50)
     total_updated = 0
+    errors = 0
     for db_name, db_id in DATABASES.items():
         print(f"\n[{db_name}]")
         try:
@@ -91,7 +99,7 @@ def main():
 
                 # Shift DoDate.end if present (preserves time, changes only date)
                 old_dodate_end = dodate.get("end")
-                new_dodate_end = shift_to_today(old_dodate_end, today_str) if old_dodate_end else None
+                new_dodate_end = shift_end(old_dodate_end, old_dodate, today) if old_dodate_end else None
 
                 # Also shift Start if set
                 start_prop = task["properties"].get("Start", {}).get("date")
@@ -99,7 +107,12 @@ def main():
                 if start_prop and start_prop.get("start"):
                     new_start = shift_to_today(start_prop["start"], today_str)
 
-                update_task(page_id, new_dodate, new_dodate_end, new_start)
+                try:
+                    update_task(page_id, new_dodate, new_dodate_end, new_start)
+                except Exception as ex:
+                    print(f"   ERRORE '{title}': {ex}")
+                    errors += 1
+                    continue
 
                 end_label = f"→{new_dodate_end[11:16]}" if new_dodate_end and "T" in new_dodate else ""
                 start_label = f" | Start {start_prop['start'][:10]} -> {today_str}" if new_start else ""
@@ -107,7 +120,10 @@ def main():
                 total_updated += 1
         except Exception as ex:
             print(f"   ERRORE: {ex}")
+            errors += 1
     print(f"\nTotale aggiornati: {total_updated}\n")
+    if errors:
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
